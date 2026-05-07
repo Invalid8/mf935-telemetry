@@ -57,27 +57,34 @@ function setStatus(status) {
 // ---------------------------------------------------------------------------
 
 let unreachableOverlay = null;
+let unreachableTimer = null;
 
-function showUnreachableOverlay() {
-  if (unreachableOverlay) return;
+function showUnreachableOverlay(
+  sub = "Waiting for MiFi to come back online...",
+) {
+  if (unreachableOverlay || unreachableTimer) return;
 
-  unreachableOverlay = document.createElement("div");
-  unreachableOverlay.id = "device-overlay";
-  unreachableOverlay.innerHTML = `
-    <div class="device-overlay-inner">
-      <div class="device-spinner"></div>
-      <p class="device-overlay-title">Device unreachable</p>
-      <p class="device-overlay-sub">Waiting for MiFi to come back online...</p>
-    </div>
-  `;
-  document.body.appendChild(unreachableOverlay);
-
-  requestAnimationFrame(() => {
-    unreachableOverlay.classList.add("visible");
-  });
+  unreachableTimer = setTimeout(() => {
+    unreachableTimer = null;
+    unreachableOverlay = document.createElement("div");
+    unreachableOverlay.id = "device-overlay";
+    unreachableOverlay.innerHTML = `
+      <div class="device-overlay-inner">
+        <div class="device-spinner"></div>
+        <p class="device-overlay-title">Device unreachable</p>
+        <p class="device-overlay-sub">${sub}</p>
+      </div>
+    `;
+    document.body.appendChild(unreachableOverlay);
+    requestAnimationFrame(() => unreachableOverlay.classList.add("visible"));
+  }, 4000);
 }
 
 function hideUnreachableOverlay() {
+  if (unreachableTimer) {
+    clearTimeout(unreachableTimer);
+    unreachableTimer = null;
+  }
   if (!unreachableOverlay) return;
   unreachableOverlay.classList.remove("visible");
   unreachableOverlay.addEventListener(
@@ -259,6 +266,18 @@ function sendNotification(title, body) {
   new Notification(title, { body, icon: "/favicon.ico" });
 }
 
+async function notifyOrPrompt(title, body) {
+  if (!("Notification" in window)) return;
+  if (Notification.permission === "denied") return;
+
+  if (Notification.permission !== "granted") {
+    const result = await Notification.requestPermission();
+    if (result !== "granted") return;
+  }
+
+  new Notification(title, { body, icon: "/favicon.ico" });
+}
+
 // ---------------------------------------------------------------------------
 // Notify button — fires a test notification based on current charging state
 // ---------------------------------------------------------------------------
@@ -270,7 +289,6 @@ function setupNotifyButton() {
 
   els.notifyBtn.addEventListener("click", async () => {
     const granted = await requestNotificationPermission();
-
     if (!granted) {
       logEvent(
         "notification_denied",
@@ -305,26 +323,10 @@ function startSSE() {
       return;
     }
 
-    const { event, payload } = msg;
-
-    if (event === EVENTS.BATTERY_CHANGED) {
-      const charging = payload.battery_charging;
-      if (charging !== lastChargingState) {
-        const wasKnown = lastChargingState !== null;
-        lastChargingState = charging;
-        if (wasKnown) {
-          sendNotification(
-            charging === "1" ? "MiFi — Plugged in" : "MiFi — Unplugged",
-            charging === "1"
-              ? "The device is now charging."
-              : "The device is now on battery.",
-          );
-        }
-      }
-    }
+    const { event } = msg;
 
     if (event === EVENTS.DEVICE_UNREACHABLE) {
-      showUnreachableOverlay();
+      showUnreachableOverlay("Waiting for MiFi to come back online...");
     } else if (event === EVENTS.DEVICE_RECOVERED) {
       hideUnreachableOverlay();
     }
@@ -368,8 +370,22 @@ function startSocket() {
       logEvent(EVENTS.CONNECTION_LOST, p, at);
     })
     .on(EVENTS.BATTERY_CHANGED, (p, at) => {
+      const prev = lastChargingState;
       lastChargingState = p.battery_charging ?? lastChargingState;
       renderBattery(p);
+      if (
+        prev !== null &&
+        p.battery_charging !== undefined &&
+        p.battery_charging !== prev
+      ) {
+        const title =
+          p.battery_charging === "1" ? "MiFi — Plugged in" : "MiFi — Unplugged";
+        const body =
+          p.battery_charging === "1"
+            ? "The device is now charging."
+            : "The device is now on battery.";
+        notifyOrPrompt(title, body);
+      }
       logEvent(EVENTS.BATTERY_CHANGED, p, at);
     })
     .on(EVENTS.CLIENTS_CHANGED, (p, at) => {
@@ -394,7 +410,7 @@ function startSocket() {
       logEvent(EVENTS.OTA_AVAILABLE, p, at);
     })
     .on(EVENTS.DEVICE_UNREACHABLE, (p, at) => {
-      showUnreachableOverlay();
+      showUnreachableOverlay("Waiting for MiFi to come back online...");
       logEvent(EVENTS.DEVICE_UNREACHABLE, p, at);
     })
     .on(EVENTS.DEVICE_MISMATCH, (p, at) => {
@@ -418,14 +434,24 @@ async function boot() {
   const cookie = getPasswordCookie();
   if (cookie) {
     const result = await reAuthWithCookie(cookie);
-    if (result.ok) {
+
+    // Network error means the Go server is temporarily down — don't show login,
+    // just bring up the dashboard and let the WS reconnect loop handle it.
+    if (
+      result.ok ||
+      result.message === "network error — is the server running?"
+    ) {
+      await requestNotificationPermission();
       startSocket();
       startSSE();
       return;
     }
+
+    // Auth rejected (wrong password / session expired) — need fresh login.
   }
 
   await showLoginModal();
+  await requestNotificationPermission();
   startSocket();
   startSSE();
 }

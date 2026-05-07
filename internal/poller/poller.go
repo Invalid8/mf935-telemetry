@@ -44,9 +44,10 @@ var pollFields = []string{
 }
 
 type Poller struct {
-	client  *client.RouterClient
-	session *auth.Session
-	hub     *ws.Hub
+	client     *client.RouterClient
+	session    *auth.Session
+	hub        *ws.Hub
+	failStreak int
 }
 
 func New(c *client.RouterClient, s *auth.Session, h *ws.Hub) *Poller {
@@ -72,7 +73,8 @@ func (p *Poller) Run(ctx context.Context) {
 		case <-ticker.C:
 			next, err := p.fetch()
 			if err != nil {
-				if status == statusOK {
+				p.failStreak++
+				if status == statusOK && p.failStreak >= 2 {
 					status = statusUnreachable
 					log.Printf("poller: device unreachable: %v", err)
 					p.hub.Broadcast(events.Event{
@@ -84,6 +86,7 @@ func (p *Poller) Run(ctx context.Context) {
 				ticker.Reset(retryInterval)
 				continue
 			}
+			p.failStreak = 0
 
 			if status == statusUnreachable {
 				if err := p.session.ValidateMF935(); err != nil {

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"sync"
 
 	"github.com/gorilla/websocket"
 
@@ -15,16 +16,24 @@ var upgrader = websocket.Upgrader{
 }
 
 type client struct {
-	conn *websocket.Conn
-	send chan []byte
+	conn      *websocket.Conn
+	send      chan []byte
+	closeOnce sync.Once
 }
 
-// SSEPublisher is implemented by sse.Hub — avoids an import cycle.
+func (c *client) close() {
+	c.closeOnce.Do(func() {
+		close(c.send)
+		c.conn.Close()
+	})
+}
+
 type SSEPublisher interface {
 	Publish(event events.Event)
 }
 
 type Hub struct {
+	mu         sync.RWMutex
 	clients    map[*client]bool
 	broadcast  chan []byte
 	register   chan *client
@@ -42,7 +51,6 @@ func NewHub() *Hub {
 	}
 }
 
-// SetSSE wires in the SSE hub so every broadcast is also forwarded.
 func (h *Hub) SetSSE(p SSEPublisher) {
 	h.sse = p
 }
@@ -53,14 +61,17 @@ func (h *Hub) Run() {
 		case c := <-h.register:
 			h.clients[c] = true
 			if h.snapshot != nil {
-				c.send <- h.snapshot
+				select {
+				case c.send <- h.snapshot:
+				default:
+				}
 			}
 			log.Printf("ws: client connected — total: %d", len(h.clients))
 
 		case c := <-h.unregister:
 			if _, ok := h.clients[c]; ok {
 				delete(h.clients, c)
-				close(c.send)
+				c.close()
 				log.Printf("ws: client disconnected — total: %d", len(h.clients))
 			}
 
@@ -69,8 +80,8 @@ func (h *Hub) Run() {
 				select {
 				case c.send <- msg:
 				default:
-					close(c.send)
 					delete(h.clients, c)
+					c.close()
 				}
 			}
 		}
@@ -114,11 +125,9 @@ func (h *Hub) ServeWS(w http.ResponseWriter, r *http.Request) {
 
 	h.register <- c
 
+	// writer
 	go func() {
-		defer func() {
-			h.unregister <- c
-			conn.Close()
-		}()
+		defer func() { h.unregister <- c }()
 		for msg := range c.send {
 			if err := conn.WriteMessage(websocket.TextMessage, msg); err != nil {
 				return
@@ -127,10 +136,7 @@ func (h *Hub) ServeWS(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	go func() {
-		defer func() {
-			h.unregister <- c
-			conn.Close()
-		}()
+		defer func() { h.unregister <- c }()
 		for {
 			if _, _, err := conn.ReadMessage(); err != nil {
 				return
