@@ -19,12 +19,18 @@ type client struct {
 	send chan []byte
 }
 
+// SSEPublisher is implemented by sse.Hub — avoids an import cycle.
+type SSEPublisher interface {
+	Publish(event events.Event)
+}
+
 type Hub struct {
 	clients    map[*client]bool
 	broadcast  chan []byte
 	register   chan *client
 	unregister chan *client
 	snapshot   []byte
+	sse        SSEPublisher
 }
 
 func NewHub() *Hub {
@@ -34,6 +40,11 @@ func NewHub() *Hub {
 		register:   make(chan *client),
 		unregister: make(chan *client),
 	}
+}
+
+// SetSSE wires in the SSE hub so every broadcast is also forwarded.
+func (h *Hub) SetSSE(p SSEPublisher) {
+	h.sse = p
 }
 
 func (h *Hub) Run() {
@@ -73,6 +84,10 @@ func (h *Hub) Broadcast(event events.Event) {
 		return
 	}
 	h.broadcast <- data
+
+	if h.sse != nil {
+		h.sse.Publish(event)
+	}
 }
 
 func (h *Hub) StoreSnapshot(event events.Event) {

@@ -2,7 +2,6 @@
  * app.js
  * Main entry point — wires socket events to DOM updates.
  * Handles auth check before connecting the socket.
- * Wrapper is hidden until auth succeeds — no flash.
  */
 
 import {
@@ -14,10 +13,6 @@ import {
 } from "./events.js";
 import { TelemetrySocket } from "./socket.js";
 import { getPasswordCookie, reAuthWithCookie, showLoginModal } from "./auth.js";
-
-// ---------------------------------------------------------------------------
-// DOM refs
-// ---------------------------------------------------------------------------
 
 const $ = (id) => document.getElementById(id);
 
@@ -60,6 +55,42 @@ const els = {
 function setStatus(status) {
   els.statusDot.className = "status-dot " + status;
   els.statusLabel.textContent = status;
+}
+
+// ---------------------------------------------------------------------------
+// Device state banner
+// ---------------------------------------------------------------------------
+
+let deviceBanner = null;
+
+function showDeviceBanner(message, type) {
+  if (!deviceBanner) {
+    deviceBanner = document.createElement("div");
+    deviceBanner.style.cssText = `
+      position: fixed; top: 0; left: 0; right: 0; z-index: 50;
+      padding: 10px 20px; font-family: var(--mono); font-size: 12px;
+      text-align: center; letter-spacing: 0.05em;
+      transition: background 0.3s;
+    `;
+    document.body.prepend(deviceBanner);
+  }
+
+  const colors = {
+    error: { bg: "#1a0000", color: "#ef4444", border: "#ef444433" },
+    warning: { bg: "#1a1400", color: "#FFCC00", border: "#FFCC0033" },
+    ok: { bg: "#001a08", color: "#22c55e", border: "#22c55e33" },
+  };
+
+  const c = colors[type] ?? colors.warning;
+  deviceBanner.style.background = c.bg;
+  deviceBanner.style.color = c.color;
+  deviceBanner.style.borderBottom = `1px solid ${c.border}`;
+  deviceBanner.textContent = message;
+  deviceBanner.style.display = "block";
+}
+
+function hideDeviceBanner() {
+  if (deviceBanner) deviceBanner.style.display = "none";
 }
 
 // ---------------------------------------------------------------------------
@@ -215,11 +246,42 @@ function applySnapshot(p) {
 }
 
 // ---------------------------------------------------------------------------
-// Socket
+// SSE — /events notification stream
+// ---------------------------------------------------------------------------
+
+function startSSE() {
+  const es = new EventSource("/events");
+
+  es.onmessage = (e) => {
+    let msg;
+    try {
+      msg = JSON.parse(e.data);
+    } catch {
+      return;
+    }
+
+    const { event, payload } = msg;
+
+    if (event === EVENTS.DEVICE_UNREACHABLE) {
+      showDeviceBanner("⚠ MiFi unreachable — retrying…", "warning");
+    } else if (event === EVENTS.DEVICE_MISMATCH) {
+      showDeviceBanner(`✕ Device mismatch — ${payload.reason}`, "error");
+    } else if (event === EVENTS.DEVICE_RECOVERED) {
+      showDeviceBanner("✓ MiFi reconnected", "ok");
+      setTimeout(hideDeviceBanner, 4000);
+    }
+  };
+
+  es.onerror = () => {
+    // EventSource auto-reconnects — nothing to do
+  };
+}
+
+// ---------------------------------------------------------------------------
+// WebSocket — /stream telemetry
 // ---------------------------------------------------------------------------
 
 function startSocket() {
-  // Reveal dashboard only after auth clears — no flash
   els.wrapper.style.display = "block";
 
   const socket = new TelemetrySocket(setStatus);
@@ -227,6 +289,7 @@ function startSocket() {
   socket
     .on(EVENTS.SNAPSHOT, (p, at) => {
       applySnapshot(p);
+      hideDeviceBanner();
       logEvent(
         EVENTS.SNAPSHOT,
         { fields: Object.keys(p).length + " fields" },
@@ -273,13 +336,22 @@ function startSocket() {
     })
     .on(EVENTS.OTA_AVAILABLE, (p, at) => {
       logEvent(EVENTS.OTA_AVAILABLE, p, at);
+    })
+    .on(EVENTS.DEVICE_UNREACHABLE, (p, at) => {
+      logEvent(EVENTS.DEVICE_UNREACHABLE, p, at);
+    })
+    .on(EVENTS.DEVICE_MISMATCH, (p, at) => {
+      logEvent(EVENTS.DEVICE_MISMATCH, p, at);
+    })
+    .on(EVENTS.DEVICE_RECOVERED, (p, at) => {
+      logEvent(EVENTS.DEVICE_RECOVERED, p, at);
     });
 
   socket.connect();
 }
 
 // ---------------------------------------------------------------------------
-// Boot — auth before socket
+// Boot
 // ---------------------------------------------------------------------------
 
 async function boot() {
@@ -289,13 +361,14 @@ async function boot() {
     const result = await reAuthWithCookie(cookie);
     if (result.ok) {
       startSocket();
+      startSSE();
       return;
     }
-    // Stale cookie — fall through to modal
   }
 
   await showLoginModal();
   startSocket();
+  startSSE();
 }
 
 boot();

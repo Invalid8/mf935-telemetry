@@ -5,11 +5,6 @@
  * Import this before socket.js and app.js.
  */
 
-// ---------------------------------------------------------------------------
-// Event name constants
-// Mirror of internal/events/events.go
-// ---------------------------------------------------------------------------
-
 export const EVENTS = {
   SNAPSHOT: "snapshot",
   SIGNAL_CHANGED: "signal_changed",
@@ -23,115 +18,56 @@ export const EVENTS = {
   THROUGHPUT: "throughput_updated",
   DATA_LIMIT_CHANGED: "data_limit_changed",
   OTA_AVAILABLE: "ota_available",
+
+  DEVICE_UNREACHABLE: "device_unreachable",
+  DEVICE_MISMATCH: "device_mismatch",
+  DEVICE_RECOVERED: "device_recovered",
 };
 
-// ---------------------------------------------------------------------------
-// Payload shapes (JSDoc — for editor hints and self-documentation)
-// ---------------------------------------------------------------------------
+/**
+ * @typedef {Object} DeviceUnreachablePayload
+ * @property {string} reason - Human-readable description
+ */
+
+/**
+ * @typedef {Object} DeviceMismatchPayload
+ * @property {string} reason - e.g. "device at 192.168.0.1 is not an MTN MF935"
+ */
 
 /**
  * @typedef {Object} SnapshotPayload
- * Full device state — sent immediately on connect.
- * @property {string} ppp_status          - "ppp_connected" | "ppp_disconnected" | "ppp_connecting"
- * @property {string} network_type        - "LTE" | "WCDMA" | "no_service"
- * @property {string} network_provider    - Raw PLMN e.g. "62130" → map via PROVIDER_MAP
- * @property {string} wan_ipaddr          - WAN IPv4
- * @property {string} simcard_roam        - "Home" | "International"
- * @property {string} dial_mode           - "auto_dial" | "manual_dial"
- * @property {string} modem_main_state    - "modem_init_complete" | "modem_waitpin" | ...
- * @property {string} signalbar           - "0"–"5"
- * @property {string} rssi                - dBm string
- * @property {string} lte_rsrp            - dBm string
- * @property {string} rscp                - dBm string (WCDMA only)
- * @property {string} battery_vol_percent - "0"–"100"
- * @property {string} battery_charging    - "1" = charging, "0" = not
- * @property {string} battery_pers        - "0"–"4" bars
- * @property {string} SSID1               - Primary WiFi network name
- * @property {string} wifi_cur_state      - "1" = on, "0" = off
- * @property {string} sta_count           - Connected client count (string)
- * @property {string} station_mac         - Semicolon-separated MAC list
- * @property {string} realtime_rx_thrpt   - bytes/s download
- * @property {string} realtime_tx_thrpt   - bytes/s upload
- * @property {string} realtime_rx_bytes   - Session download bytes
- * @property {string} realtime_tx_bytes   - Session upload bytes
- * @property {string} realtime_time       - Session duration in seconds
- * @property {string} monthly_rx_bytes    - Month download bytes
- * @property {string} monthly_tx_bytes    - Month upload bytes
- * @property {string} sms_unread_num      - Unread SMS count (string)
- * @property {string} sms_db_change       - Changes when SMS DB is modified
- * @property {string} data_volume_limit_switch - "0" = off, "1" = on
- * @property {string} wan_lte_ca          - "ca_activated" | "ca_deactivated"
- * @property {string} new_version_state   - "version_idle" | "version_has_new_software"
- * @property {string} last_updated        - ISO timestamp
- */
-
-/**
- * @typedef {Object} SignalPayload
+ * @property {string} ppp_status
+ * @property {string} network_type
+ * @property {string} network_provider
+ * @property {string} wan_ipaddr
+ * @property {string} simcard_roam
+ * @property {string} dial_mode
+ * @property {string} modem_main_state
  * @property {string} signalbar
  * @property {string} rssi
  * @property {string} lte_rsrp
- * @property {string} network_type
- */
-
-/**
- * @typedef {Object} ConnectionPayload
- * @property {string} ppp_status
- * @property {string} network_provider
- * @property {string} wan_ipaddr
- * @property {string} network_type
- */
-
-/**
- * @typedef {Object} BatteryPayload
+ * @property {string} rscp
  * @property {string} battery_vol_percent
  * @property {string} battery_charging
  * @property {string} battery_pers
- * @property {string} battery_value
- */
-
-/**
- * @typedef {Object} ClientsPayload
+ * @property {string} SSID1
+ * @property {string} wifi_cur_state
  * @property {string} sta_count
- * @property {string} m_sta_count
- * @property {string} station_mac   - Split on ";" — last element is always empty
- */
-
-/**
- * @typedef {Object} ThroughputPayload
+ * @property {string} station_mac
  * @property {string} realtime_rx_thrpt
  * @property {string} realtime_tx_thrpt
  * @property {string} realtime_rx_bytes
  * @property {string} realtime_tx_bytes
  * @property {string} realtime_time
- */
-
-/**
- * @typedef {Object} SmsPayload
+ * @property {string} monthly_rx_bytes
+ * @property {string} monthly_tx_bytes
  * @property {string} sms_unread_num
- */
-
-/**
- * @typedef {Object} SmsDbPayload
  * @property {string} sms_db_change
- */
-
-/**
- * @typedef {Object} DataLimitPayload
  * @property {string} data_volume_limit_switch
- * @property {string} data_volume_limit_size
- * @property {string} data_volume_limit_unit
- * @property {string} data_volume_alert_percent
- */
-
-/**
- * @typedef {Object} OTAPayload
+ * @property {string} wan_lte_ca
  * @property {string} new_version_state
- * @property {string} current_upgrade_state
+ * @property {string} last_updated
  */
-
-// ---------------------------------------------------------------------------
-// Display helpers
-// ---------------------------------------------------------------------------
 
 /** Maps raw PLMN codes to readable operator names */
 export const PROVIDER_MAP = {
@@ -141,12 +77,10 @@ export const PROVIDER_MAP = {
   62160: "9mobile Nigeria",
 };
 
-/** Resolve a raw provider string to a display name */
 export function resolveProvider(raw) {
   return PROVIDER_MAP[raw] ?? raw;
 }
 
-/** Format bytes into a human-readable string */
 export function fmtBytes(n) {
   n = parseInt(n, 10);
   if (isNaN(n) || n === 0) return "0 B";
@@ -156,7 +90,6 @@ export function fmtBytes(n) {
   return (n / 1073741824).toFixed(2) + " GB";
 }
 
-/** Format seconds into HH:MM:SS */
 export function fmtDuration(s) {
   s = parseInt(s, 10);
   if (isNaN(s)) return "—";
@@ -166,7 +99,6 @@ export function fmtDuration(s) {
   return [h, m, sec].map((v) => String(v).padStart(2, "0")).join(":");
 }
 
-/** Signal bar count to a label */
 export function fmtSignal(bars) {
   const map = {
     0: "No signal",

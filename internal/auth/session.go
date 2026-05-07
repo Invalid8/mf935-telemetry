@@ -65,6 +65,20 @@ func (s *Session) LoginPrehashed(preHashed string) error {
 	return nil
 }
 
+func (s *Session) ValidateMF935() error {
+	data, err := s.client.GetCmds([]string{"wa_inner_version"})
+	if err != nil {
+		return fmt.Errorf("validate: unreachable: %w", err)
+	}
+
+	v := data["wa_inner_version"]
+	if !strings.Contains(v, "MTN") || !strings.Contains(v, "MF935") {
+		return fmt.Errorf("validate: device mismatch — wa_inner_version=%q", v)
+	}
+
+	return nil
+}
+
 func (s *Session) ADToken() (string, error) {
 	if s.waInnerVersion == "" || s.crVersion == "" {
 		return "", fmt.Errorf("ADToken: session not initialised — call Login first")

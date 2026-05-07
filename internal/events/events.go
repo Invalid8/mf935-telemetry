@@ -21,4 +21,18 @@ const (
 	EventDataLimitChanged = "data_limit_changed"
 	EventOTAAvailable     = "ota_available"
 	EventSnapshot         = "snapshot"
+
+	EventDeviceUnreachable = "device_unreachable"
+	EventDeviceMismatch    = "device_mismatch"
+	EventDeviceRecovered   = "device_recovered"
 )
+
+var NotificationEvents = map[string]bool{
+	EventConnectionLost:    true,
+	EventConnectionGained:  true,
+	EventBatteryChanged:    true,
+	EventSmsReceived:       true,
+	EventDeviceUnreachable: true,
+	EventDeviceMismatch:    true,
+	EventDeviceRecovered:   true,
+}

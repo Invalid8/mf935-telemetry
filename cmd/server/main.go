@@ -12,6 +12,7 @@ import (
 	"mf935-telemetry/internal/auth"
 	"mf935-telemetry/internal/client"
 	"mf935-telemetry/internal/poller"
+	"mf935-telemetry/internal/sse"
 	"mf935-telemetry/internal/ws"
 )
 
@@ -27,12 +28,16 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	hub := ws.NewHub()
-	go hub.Run()
+	wsHub := ws.NewHub()
+	sseHub := sse.NewHub()
+	wsHub.SetSSE(sseHub)
 
-	p := poller.New(rc, hub)
+	go wsHub.Run()
 
-	http.HandleFunc("/stream", hub.ServeWS)
+	p := poller.New(rc, session, wsHub)
+
+	http.HandleFunc("/stream", wsHub.ServeWS)
+	http.HandleFunc("/events", sseHub.ServeHTTP)
 	http.HandleFunc("/api/login", loginHandler(session, p, ctx))
 	serveStatic()
 
@@ -52,8 +57,9 @@ func main() {
 
 	go func() {
 		ip := lanIP()
-		log.Printf("server: dashboard → http://%s:9000", ip)
-		log.Printf("server: ws stream → ws://%s:9000/stream", ip)
+		log.Printf("server: dashboard  → http://%s:9000", ip)
+		log.Printf("server: ws stream  → ws://%s:9000/stream", ip)
+		log.Printf("server: sse events → http://%s:9000/events", ip)
 		if err := http.ListenAndServe(":9000", nil); err != nil {
 			log.Fatalf("http server: %v", err)
 		}
