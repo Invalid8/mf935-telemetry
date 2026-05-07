@@ -33,13 +33,14 @@ type SSEPublisher interface {
 }
 
 type Hub struct {
-	mu         sync.RWMutex
-	clients    map[*client]bool
-	broadcast  chan []byte
-	register   chan *client
-	unregister chan *client
-	snapshot   []byte
-	sse        SSEPublisher
+	mu          sync.RWMutex
+	clients     map[*client]bool
+	broadcast   chan []byte
+	register    chan *client
+	unregister  chan *client
+	snapshot    []byte
+	unreachable []byte
+	sse         SSEPublisher
 }
 
 func NewHub() *Hub {
@@ -60,7 +61,16 @@ func (h *Hub) Run() {
 		select {
 		case c := <-h.register:
 			h.clients[c] = true
-			if h.snapshot != nil {
+			if h.unreachable != nil {
+				select {
+				case c.send <- h.snapshot:
+				default:
+				}
+				select {
+				case c.send <- h.unreachable:
+				default:
+				}
+			} else if h.snapshot != nil {
 				select {
 				case c.send <- h.snapshot:
 				default:
@@ -94,6 +104,14 @@ func (h *Hub) Broadcast(event events.Event) {
 		log.Printf("ws: marshal error: %v", err)
 		return
 	}
+
+	switch event.Type {
+	case events.EventDeviceUnreachable, events.EventDeviceMismatch:
+		h.unreachable = data
+	case events.EventDeviceRecovered:
+		h.unreachable = nil
+	}
+
 	h.broadcast <- data
 
 	if h.sse != nil {
@@ -108,6 +126,7 @@ func (h *Hub) StoreSnapshot(event events.Event) {
 		return
 	}
 	h.snapshot = data
+	h.unreachable = nil
 	h.broadcast <- data
 }
 
