@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"strings"
 	"time"
 
 	"mf935-telemetry/internal/auth"
@@ -16,7 +17,7 @@ func serveStatic() {
 }
 
 type loginRequest struct {
-	Password string `json:"password"` // SHA256(plaintext).toUpperCase() — pre-hashed by browser
+	Password string `json:"password"`
 }
 
 type loginResponse struct {
@@ -43,22 +44,27 @@ func loginHandler(session *auth.Session, p *poller.Poller, ctx context.Context) 
 		}
 
 		if err := session.Login(req.Password); err != nil {
+			if isDeviceUnreachable(err.Error()) {
+				// MiFi is down but the password may still be correct.
+				// Return 503 so the client can skip the login modal.
+				w.WriteHeader(http.StatusServiceUnavailable)
+				json.NewEncoder(w).Encode(loginResponse{OK: false, Message: "device unreachable"})
+				return
+			}
 			w.WriteHeader(http.StatusUnauthorized)
 			json.NewEncoder(w).Encode(loginResponse{OK: false, Message: err.Error()})
 			return
 		}
 
-		// Set password cookie — expires in 30 days
 		http.SetCookie(w, &http.Cookie{
 			Name:     "mf_pw",
 			Value:    req.Password,
 			Path:     "/",
 			Expires:  time.Now().Add(30 * 24 * time.Hour),
-			HttpOnly: false, // must be readable by JS for re-auth on reconnect
+			HttpOnly: false,
 			SameSite: http.SameSiteStrictMode,
 		})
 
-		// Start poller only once
 		if !started {
 			started = true
 			go p.Run(ctx)
@@ -66,4 +72,12 @@ func loginHandler(session *auth.Session, p *poller.Poller, ctx context.Context) 
 
 		json.NewEncoder(w).Encode(loginResponse{OK: true})
 	}
+}
+
+func isDeviceUnreachable(msg string) bool {
+	return strings.Contains(msg, "network is unreachable") ||
+		strings.Contains(msg, "connection refused") ||
+		strings.Contains(msg, "no route to host") ||
+		strings.Contains(msg, "i/o timeout") ||
+		strings.Contains(msg, "dial tcp")
 }

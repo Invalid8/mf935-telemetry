@@ -435,19 +435,17 @@ async function boot() {
   if (cookie) {
     const result = await reAuthWithCookie(cookie);
 
-    // Network error means the Go server is temporarily down — don't show login,
-    // just bring up the dashboard and let the WS reconnect loop handle it.
-    if (
+    const skipLogin =
       result.ok ||
-      result.message === "network error — is the server running?"
-    ) {
+      result.message === "network error — is the server running?" ||
+      result.message === "device unreachable";
+
+    if (skipLogin) {
       await requestNotificationPermission();
       startSocket();
       startSSE();
       return;
     }
-
-    // Auth rejected (wrong password / session expired) — need fresh login.
   }
 
   await showLoginModal();
