@@ -1,9 +1,3 @@
-/**
- * app.js
- * Main entry point — wires socket events to DOM updates.
- * Handles auth check before connecting the socket.
- */
-
 import {
   EVENTS,
   fmtBytes,
@@ -46,10 +40,11 @@ const els = {
   monthlyTx: $("monthly_tx_bytes"),
   smsUnread: $("sms_unread_num"),
   logList: $("log-list"),
+  notifyBtn: $("notify-btn"),
 };
 
 // ---------------------------------------------------------------------------
-// Status
+// WS status pill
 // ---------------------------------------------------------------------------
 
 function setStatus(status) {
@@ -58,39 +53,41 @@ function setStatus(status) {
 }
 
 // ---------------------------------------------------------------------------
-// Device state banner
+// Device unreachable overlay
 // ---------------------------------------------------------------------------
 
-let deviceBanner = null;
+let unreachableOverlay = null;
 
-function showDeviceBanner(message, type) {
-  if (!deviceBanner) {
-    deviceBanner = document.createElement("div");
-    deviceBanner.style.cssText = `
-      position: fixed; top: 0; left: 0; right: 0; z-index: 50;
-      padding: 10px 20px; font-family: var(--mono); font-size: 12px;
-      text-align: center; letter-spacing: 0.05em;
-      transition: background 0.3s;
-    `;
-    document.body.prepend(deviceBanner);
-  }
+function showUnreachableOverlay() {
+  if (unreachableOverlay) return;
 
-  const colors = {
-    error: { bg: "#1a0000", color: "#ef4444", border: "#ef444433" },
-    warning: { bg: "#1a1400", color: "#FFCC00", border: "#FFCC0033" },
-    ok: { bg: "#001a08", color: "#22c55e", border: "#22c55e33" },
-  };
+  unreachableOverlay = document.createElement("div");
+  unreachableOverlay.id = "device-overlay";
+  unreachableOverlay.innerHTML = `
+    <div class="device-overlay-inner">
+      <div class="device-spinner"></div>
+      <p class="device-overlay-title">Device unreachable</p>
+      <p class="device-overlay-sub">Waiting for MiFi to come back online...</p>
+    </div>
+  `;
+  document.body.appendChild(unreachableOverlay);
 
-  const c = colors[type] ?? colors.warning;
-  deviceBanner.style.background = c.bg;
-  deviceBanner.style.color = c.color;
-  deviceBanner.style.borderBottom = `1px solid ${c.border}`;
-  deviceBanner.textContent = message;
-  deviceBanner.style.display = "block";
+  requestAnimationFrame(() => {
+    unreachableOverlay.classList.add("visible");
+  });
 }
 
-function hideDeviceBanner() {
-  if (deviceBanner) deviceBanner.style.display = "none";
+function hideUnreachableOverlay() {
+  if (!unreachableOverlay) return;
+  unreachableOverlay.classList.remove("visible");
+  unreachableOverlay.addEventListener(
+    "transitionend",
+    () => {
+      unreachableOverlay?.remove();
+      unreachableOverlay = null;
+    },
+    { once: true },
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -144,7 +141,7 @@ function renderBattery(p) {
   }
   if (p.battery_charging !== undefined) {
     els.batteryCharging.textContent =
-      p.battery_charging === "1" ? "charging ⚡" : "not charging";
+      p.battery_charging === "1" ? "charging" : "not charging";
     els.batteryCharging.className =
       "val " + (p.battery_charging === "1" ? "green" : "");
   }
@@ -246,6 +243,54 @@ function applySnapshot(p) {
 }
 
 // ---------------------------------------------------------------------------
+// Push notifications
+// ---------------------------------------------------------------------------
+
+async function requestNotificationPermission() {
+  if (!("Notification" in window)) return false;
+  if (Notification.permission === "granted") return true;
+  if (Notification.permission === "denied") return false;
+  const result = await Notification.requestPermission();
+  return result === "granted";
+}
+
+function sendNotification(title, body) {
+  if (Notification.permission !== "granted") return;
+  new Notification(title, { body, icon: "/favicon.ico" });
+}
+
+// ---------------------------------------------------------------------------
+// Notify button — fires a test notification based on current charging state
+// ---------------------------------------------------------------------------
+
+let lastChargingState = null;
+
+function setupNotifyButton() {
+  if (!els.notifyBtn) return;
+
+  els.notifyBtn.addEventListener("click", async () => {
+    const granted = await requestNotificationPermission();
+
+    if (!granted) {
+      logEvent(
+        "notification_denied",
+        { reason: "permission not granted" },
+        new Date().toISOString(),
+      );
+      return;
+    }
+
+    const isCharging = lastChargingState === "1";
+    sendNotification(
+      isCharging ? "MiFi — Plugged in" : "MiFi — Unplugged",
+      isCharging
+        ? "The device is connected to power and charging."
+        : "The device is running on battery.",
+    );
+  });
+}
+
+// ---------------------------------------------------------------------------
 // SSE — /events notification stream
 // ---------------------------------------------------------------------------
 
@@ -262,18 +307,27 @@ function startSSE() {
 
     const { event, payload } = msg;
 
-    if (event === EVENTS.DEVICE_UNREACHABLE) {
-      showDeviceBanner("⚠ MiFi unreachable — retrying…", "warning");
-    } else if (event === EVENTS.DEVICE_MISMATCH) {
-      showDeviceBanner(`✕ Device mismatch — ${payload.reason}`, "error");
-    } else if (event === EVENTS.DEVICE_RECOVERED) {
-      showDeviceBanner("✓ MiFi reconnected", "ok");
-      setTimeout(hideDeviceBanner, 4000);
+    if (event === EVENTS.BATTERY_CHANGED) {
+      const charging = payload.battery_charging;
+      if (charging !== lastChargingState) {
+        const wasKnown = lastChargingState !== null;
+        lastChargingState = charging;
+        if (wasKnown) {
+          sendNotification(
+            charging === "1" ? "MiFi — Plugged in" : "MiFi — Unplugged",
+            charging === "1"
+              ? "The device is now charging."
+              : "The device is now on battery.",
+          );
+        }
+      }
     }
-  };
 
-  es.onerror = () => {
-    // EventSource auto-reconnects — nothing to do
+    if (event === EVENTS.DEVICE_UNREACHABLE) {
+      showUnreachableOverlay();
+    } else if (event === EVENTS.DEVICE_RECOVERED) {
+      hideUnreachableOverlay();
+    }
   };
 }
 
@@ -289,7 +343,8 @@ function startSocket() {
   socket
     .on(EVENTS.SNAPSHOT, (p, at) => {
       applySnapshot(p);
-      hideDeviceBanner();
+      hideUnreachableOverlay();
+      lastChargingState = p.battery_charging ?? null;
       logEvent(
         EVENTS.SNAPSHOT,
         { fields: Object.keys(p).length + " fields" },
@@ -313,6 +368,7 @@ function startSocket() {
       logEvent(EVENTS.CONNECTION_LOST, p, at);
     })
     .on(EVENTS.BATTERY_CHANGED, (p, at) => {
+      lastChargingState = p.battery_charging ?? lastChargingState;
       renderBattery(p);
       logEvent(EVENTS.BATTERY_CHANGED, p, at);
     })
@@ -338,12 +394,14 @@ function startSocket() {
       logEvent(EVENTS.OTA_AVAILABLE, p, at);
     })
     .on(EVENTS.DEVICE_UNREACHABLE, (p, at) => {
+      showUnreachableOverlay();
       logEvent(EVENTS.DEVICE_UNREACHABLE, p, at);
     })
     .on(EVENTS.DEVICE_MISMATCH, (p, at) => {
       logEvent(EVENTS.DEVICE_MISMATCH, p, at);
     })
     .on(EVENTS.DEVICE_RECOVERED, (p, at) => {
+      hideUnreachableOverlay();
       logEvent(EVENTS.DEVICE_RECOVERED, p, at);
     });
 
@@ -355,8 +413,9 @@ function startSocket() {
 // ---------------------------------------------------------------------------
 
 async function boot() {
-  const cookie = getPasswordCookie();
+  setupNotifyButton();
 
+  const cookie = getPasswordCookie();
   if (cookie) {
     const result = await reAuthWithCookie(cookie);
     if (result.ok) {

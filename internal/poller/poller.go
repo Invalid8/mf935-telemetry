@@ -14,7 +14,10 @@ import (
 	"mf935-telemetry/internal/ws"
 )
 
-const pollInterval = 2 * time.Second
+const (
+	pollInterval  = 2 * time.Second
+	retryInterval = 5 * time.Second
+)
 
 type deviceStatus int
 
@@ -51,14 +54,14 @@ func New(c *client.RouterClient, s *auth.Session, h *ws.Hub) *Poller {
 }
 
 func (p *Poller) Run(ctx context.Context) {
-	ticker := time.NewTicker(pollInterval)
-	defer ticker.Stop()
-
 	var prev state.DeviceState
 	first := true
 	status := statusOK
 
 	log.Println("poller: started")
+
+	ticker := time.NewTicker(pollInterval)
+	defer ticker.Stop()
 
 	for {
 		select {
@@ -78,6 +81,7 @@ func (p *Poller) Run(ctx context.Context) {
 						At:      time.Now(),
 					})
 				}
+				ticker.Reset(retryInterval)
 				continue
 			}
 
@@ -95,9 +99,10 @@ func (p *Poller) Run(ctx context.Context) {
 					continue
 				}
 
-				log.Println("poller: device recovered and identity confirmed")
+				log.Println("poller: device recovered")
 				status = statusOK
-				first = true // re-snapshot after recovery
+				first = true
+				ticker.Reset(pollInterval)
 				p.hub.Broadcast(events.Event{
 					Type:    events.EventDeviceRecovered,
 					Payload: map[string]string{},
@@ -109,9 +114,10 @@ func (p *Poller) Run(ctx context.Context) {
 				if err := p.session.ValidateMF935(); err != nil {
 					continue
 				}
-				log.Println("poller: mismatch resolved — device identity confirmed")
+				log.Println("poller: mismatch resolved")
 				status = statusOK
 				first = true
+				ticker.Reset(pollInterval)
 				p.hub.Broadcast(events.Event{
 					Type:    events.EventDeviceRecovered,
 					Payload: map[string]string{},
@@ -127,8 +133,8 @@ func (p *Poller) Run(ctx context.Context) {
 				})
 				first = false
 			} else {
-				for _, event := range diff.Compute(prev, next) {
-					p.hub.Broadcast(event)
+				for _, ev := range diff.Compute(prev, next) {
+					p.hub.Broadcast(ev)
 				}
 			}
 

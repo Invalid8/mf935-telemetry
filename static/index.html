@@ -25,7 +25,6 @@
     </div>
 
     <div class="wrapper">
-      <!-- Header -->
       <header>
         <div class="header-left">
           <div class="logo-mark"></div>
@@ -35,6 +34,13 @@
           </div>
         </div>
         <div class="header-right">
+          <button
+            id="notify-btn"
+            class="notify-btn"
+            title="Test charging notification"
+          >
+            notify
+          </button>
           <div class="status-pill">
             <div id="status-dot" class="status-dot connecting"></div>
             <span id="status-label">connecting</span>
@@ -42,7 +48,6 @@
         </div>
       </header>
 
-      <!-- Cards grid -->
       <div class="grid">
         <!-- Network -->
         <div class="card">
@@ -67,32 +72,32 @@
             </svg>
           </div>
           <div class="row">
-            <span class="key">status</span>
-            <span class="val" id="ppp_status">—</span>
+            <span class="key">status</span
+            ><span class="val" id="ppp_status">—</span>
           </div>
           <div class="row">
-            <span class="key">type</span>
-            <span class="val" id="network_type">—</span>
+            <span class="key">type</span
+            ><span class="val" id="network_type">—</span>
           </div>
           <div class="row">
-            <span class="key">provider</span>
-            <span class="val" id="network_provider">—</span>
+            <span class="key">provider</span
+            ><span class="val" id="network_provider">—</span>
           </div>
           <div class="row">
-            <span class="key">wan ip</span>
-            <span class="val" id="wan_ipaddr">—</span>
+            <span class="key">wan ip</span
+            ><span class="val" id="wan_ipaddr">—</span>
           </div>
           <div class="row">
-            <span class="key">roaming</span>
-            <span class="val" id="simcard_roam">—</span>
+            <span class="key">roaming</span
+            ><span class="val" id="simcard_roam">—</span>
           </div>
           <div class="row">
-            <span class="key">dial mode</span>
-            <span class="val" id="dial_mode">—</span>
+            <span class="key">dial mode</span
+            ><span class="val" id="dial_mode">—</span>
           </div>
           <div class="row">
-            <span class="key">carrier agg</span>
-            <span class="val" id="wan_lte_ca">—</span>
+            <span class="key">carrier agg</span
+            ><span class="val" id="wan_lte_ca">—</span>
           </div>
         </div>
 
@@ -109,15 +114,15 @@
             </div>
           </div>
           <div class="row">
-            <span class="key">strength</span>
-            <span class="val" id="signalbar">—</span>
+            <span class="key">strength</span
+            ><span class="val" id="signalbar">—</span>
           </div>
           <div class="row">
-            <span class="key">rssi</span> <span class="val" id="rssi">—</span>
+            <span class="key">rssi</span><span class="val" id="rssi">—</span>
           </div>
           <div class="row">
-            <span class="key">lte rsrp</span>
-            <span class="val" id="lte_rsrp">—</span>
+            <span class="key">lte rsrp</span
+            ><span class="val" id="lte_rsrp">—</span>
           </div>
         </div>
 
@@ -141,16 +146,16 @@
             </svg>
           </div>
           <div class="row">
-            <span class="key">percent</span>
-            <span class="val" id="battery_vol_percent">—</span>
+            <span class="key">percent</span
+            ><span class="val" id="battery_vol_percent">—</span>
           </div>
           <div class="row">
-            <span class="key">charging</span>
-            <span class="val" id="battery_charging">—</span>
+            <span class="key">charging</span
+            ><span class="val" id="battery_charging">—</span>
           </div>
           <div class="row">
-            <span class="key">bars</span>
-            <span class="val" id="battery_pers">—</span>
+            <span class="key">bars</span
+            ><span class="val" id="battery_pers">—</span>
           </div>
           <div class="battery-track">
             <div class="battery-fill" id="battery-bar"></div>
@@ -179,15 +184,15 @@
             </svg>
           </div>
           <div class="row">
-            <span class="key">ssid</span> <span class="val" id="SSID1">—</span>
+            <span class="key">ssid</span><span class="val" id="SSID1">—</span>
           </div>
           <div class="row">
-            <span class="key">state</span>
-            <span class="val" id="wifi_cur_state">—</span>
+            <span class="key">state</span
+            ><span class="val" id="wifi_cur_state">—</span>
           </div>
           <div class="row">
-            <span class="key">clients</span>
-            <span class="val" id="sta_count">—</span>
+            <span class="key">clients</span
+            ><span class="val" id="sta_count">—</span>
           </div>
         </div>
 
@@ -211,24 +216,24 @@
             </svg>
           </div>
           <div class="row">
-            <span class="key">download</span>
-            <span class="val yellow" id="realtime_rx_thrpt">—</span>
+            <span class="key">download</span
+            ><span class="val yellow" id="realtime_rx_thrpt">—</span>
           </div>
           <div class="row">
-            <span class="key">upload</span>
-            <span class="val" id="realtime_tx_thrpt">—</span>
+            <span class="key">upload</span
+            ><span class="val" id="realtime_tx_thrpt">—</span>
           </div>
           <div class="row">
-            <span class="key">session rx</span>
-            <span class="val" id="realtime_rx_bytes">—</span>
+            <span class="key">session rx</span
+            ><span class="val" id="realtime_rx_bytes">—</span>
           </div>
           <div class="row">
-            <span class="key">session tx</span>
-            <span class="val" id="realtime_tx_bytes">—</span>
+            <span class="key">session tx</span
+            ><span class="val" id="realtime_tx_bytes">—</span>
           </div>
           <div class="row">
-            <span class="key">duration</span>
-            <span class="val" id="realtime_time">—</span>
+            <span class="key">duration</span
+            ><span class="val" id="realtime_time">—</span>
           </div>
         </div>
 
@@ -253,12 +258,12 @@
             </svg>
           </div>
           <div class="row">
-            <span class="key">downloaded</span>
-            <span class="val" id="monthly_rx_bytes">—</span>
+            <span class="key">downloaded</span
+            ><span class="val" id="monthly_rx_bytes">—</span>
           </div>
           <div class="row">
-            <span class="key">uploaded</span>
-            <span class="val" id="monthly_tx_bytes">—</span>
+            <span class="key">uploaded</span
+            ><span class="val" id="monthly_tx_bytes">—</span>
           </div>
         </div>
 
@@ -283,13 +288,12 @@
             </svg>
           </div>
           <div class="row">
-            <span class="key">unread</span>
-            <span class="val" id="sms_unread_num">—</span>
+            <span class="key">unread</span
+            ><span class="val" id="sms_unread_num">—</span>
           </div>
         </div>
       </div>
 
-      <!-- Event log -->
       <div class="log-section">
         <div class="log-header">
           <h2>Event Log</h2>
