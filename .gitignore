@@ -1,5 +1,5 @@
 # Binary
-mf935-telemetry
+server
 
 # Go build cache
 *.exe
