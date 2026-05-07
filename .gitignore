@@ -1,0 +1,34 @@
+# Binary
+server
+mf935-telemetry
+
+# Go build cache
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# Go module cache
+vendor/
+
+# Environment — never commit credentials
+.env
+.env.*
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# websocat (downloaded locally for testing)
+websocat
+
+config.json
