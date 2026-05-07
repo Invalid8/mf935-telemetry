@@ -1,4 +1,4 @@
-module github.com/invalid8/mf935-telemetry
+module mf935-telemetry
 
 go 1.25.4
 

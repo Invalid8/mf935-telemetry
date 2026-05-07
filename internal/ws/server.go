@@ -7,7 +7,7 @@ import (
 
 	"github.com/gorilla/websocket"
 
-	"github.com/invalid8/mf935-telemetry/internal/events"
+	"mf935-telemetry/internal/events"
 )
 
 var upgrader = websocket.Upgrader{

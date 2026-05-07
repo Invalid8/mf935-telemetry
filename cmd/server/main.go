@@ -9,10 +9,10 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/invalid8/mf935-telemetry/internal/auth"
-	"github.com/invalid8/mf935-telemetry/internal/client"
-	"github.com/invalid8/mf935-telemetry/internal/poller"
-	"github.com/invalid8/mf935-telemetry/internal/ws"
+	"mf935-telemetry/internal/auth"
+	"mf935-telemetry/internal/client"
+	"mf935-telemetry/internal/poller"
+	"mf935-telemetry/internal/ws"
 )
 
 func main() {

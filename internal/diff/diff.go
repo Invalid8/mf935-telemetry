@@ -3,8 +3,8 @@ package diff
 import (
 	"time"
 
-	"github.com/invalid8/mf935-telemetry/internal/events"
-	"github.com/invalid8/mf935-telemetry/internal/state"
+	"mf935-telemetry/internal/events"
+	"mf935-telemetry/internal/state"
 )
 
 func Compute(prev, next state.DeviceState) []events.Event {

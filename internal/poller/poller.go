@@ -5,11 +5,11 @@ import (
 	"log"
 	"time"
 
-	"github.com/invalid8/mf935-telemetry/internal/client"
-	"github.com/invalid8/mf935-telemetry/internal/diff"
-	"github.com/invalid8/mf935-telemetry/internal/events"
-	"github.com/invalid8/mf935-telemetry/internal/state"
-	"github.com/invalid8/mf935-telemetry/internal/ws"
+	"mf935-telemetry/internal/client"
+	"mf935-telemetry/internal/diff"
+	"mf935-telemetry/internal/events"
+	"mf935-telemetry/internal/state"
+	"mf935-telemetry/internal/ws"
 )
 
 const pollInterval = 2 * time.Second

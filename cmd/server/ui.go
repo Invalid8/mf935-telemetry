@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/invalid8/mf935-telemetry/internal/auth"
-	"github.com/invalid8/mf935-telemetry/internal/poller"
+	"mf935-telemetry/internal/auth"
+	"mf935-telemetry/internal/poller"
 )
 
 func serveStatic() {

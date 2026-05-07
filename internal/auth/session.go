@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/invalid8/mf935-telemetry/internal/client"
+	"mf935-telemetry/internal/client"
 )
 
 type Session struct {
